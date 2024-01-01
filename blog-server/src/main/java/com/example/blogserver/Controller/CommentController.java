@@ -1,4 +1,4 @@
-package com.example.blogserver.controller;
+package com.example.blogserver.Controller;
 
 
 import org.springframework.web.bind.annotation.RequestMapping;

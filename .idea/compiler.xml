@@ -8,8 +8,8 @@
         <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
         <outputRelativeToContentRoot value="true" />
         <module name="blog-server" />
-        <module name="blog-extension" />
         <module name="blog-common" />
+        <module name="blog-extension" />
         <module name="blog-nacos" />
         <module name="blog-encrypt" />
       </profile>
