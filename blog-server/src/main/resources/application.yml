@@ -28,7 +28,7 @@ spring:
           enabled: true
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-      url: jdbc:mysql://1.94.104.159:3306/blog?useSSL=false&serverTimezone=UTC&useUnicode=yes&characterEncoding=utf8
+    url: jdbc:mysql://1.94.104.159:3306/blog?useSSL=false&serverTimezone=UTC&useUnicode=yes&characterEncoding=utf8
     username: blog
     password: swYrcHYw2NL3ZTYy
 
