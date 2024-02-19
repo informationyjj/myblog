@@ -38,20 +38,14 @@ public class Link implements Serializable {
      */
     private String linkName;
 
-    /**
-     * 友链头像地址
-     */
-    private String avatarLink;
+
 
     /**
      * 友链地址
      */
     private String blogLink;
 
-    /**
-     * 友链博客描述
-     */
-    private String description;
+
 
     /**
      * 创建时间
@@ -59,10 +53,7 @@ public class Link implements Serializable {
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
 
-    /**
-     * 友链展示状态
-     */
-    private Boolean status;
+
 
     /**
      * 用户关联的友链

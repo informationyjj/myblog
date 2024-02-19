@@ -23,8 +23,8 @@ public class UserVo {
     private String username;
 
     private String email;
-
     private String avatar;
+
 
     /**
      * 最近登录时间
@@ -32,4 +32,6 @@ public class UserVo {
     @JsonDeserialize(using = LocalDateTimeDeserializer.class)
     @JsonSerialize(using = LocalDateTimeSerializer.class)
     private LocalDateTime lastLoginTime;
+
+    private  Long timeStamp;
 }

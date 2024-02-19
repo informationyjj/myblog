@@ -5,18 +5,17 @@ import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.collection.ListUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.metadata.OrderItem;
 import com.baomidou.mybatisplus.core.toolkit.CollectionUtils;
 import com.baomidou.mybatisplus.core.toolkit.IdWorker;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.blogserver.Utils.JWTUtils;
 import com.example.blogserver.Utils.MarkdownUtils;
 import com.example.blogserver.Utils.WebUtil;
-import com.example.blogserver.Vo.BlogVo;
-import com.example.blogserver.Vo.FavoriteVo;
-import com.example.blogserver.Vo.FindPageVo;
-import com.example.blogserver.Vo.displayBlogVo;
+import com.example.blogserver.Vo.*;
 import com.example.blogserver.dto.BlogBackInfoDTO;
 import com.example.blogserver.entity.*;
 import com.example.blogserver.exception.BizException;
@@ -30,7 +29,6 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 
 import com.zlc.blogcommon.dto.*;
 import com.zlc.blogcommon.po.Blog;
-import com.zlc.blogcommon.po.User;
 import com.zlc.blogcommon.vo.TypeVO;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -38,6 +36,7 @@ import org.springframework.stereotype.Service;
 
 import javax.xml.crypto.Data;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
@@ -103,7 +102,7 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
             blog.setBlogId(blogId)
                     .setUid(blogVo.getUid())
                     .setCreateTime(LocalDateTime.now())
-                    .setPublished(true)
+                    .setPublished(0)
                     .setRecommend(blogVo.getRecommend())
                     .setViews(0)
                     .setAppreciation(blogVo.getAppreciation())
@@ -170,7 +169,7 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
 
         Blog blog = getOne(new LambdaQueryWrapper<Blog>().eq(Blog::getBlogId, blogId));
         BlogVo blogVo=new BlogVo();
-        User user = userService.getById(blog.getUid());
+        com.example.blogserver.entity.User user = userService.getById(blog.getUid());
         if(user==null){
             throw new BizException("博客没有对应的发布人，可能为垃圾数据请及时删除！");
         }
@@ -499,13 +498,15 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
         Page<Blog> page = new Page<>(queryPageBean.getCurrentPage(), queryPageBean.getPageSize());
         page.addOrder(OrderItem.desc("thumbs"));
         // 使用 MyBatis-Plus 提供的分页查询方法进行查询
-        IPage<Blog> blogPage = blogMapper.selectPage(page, null) ;//假设你的 BlogMapper 注入为 blogMapper
+        IPage<Blog> blogPage = blogMapper.selectPage(page, new LambdaQueryWrapper<Blog>().eq(Blog::getPublished,1)) ;//假设你的 BlogMapper 注入为 blogMapper
 
         // 将查询结果转换为 DisplayBlogVo 对象列表
-        List<displayBlogVo> displayBlogVos = blogPage.getRecords().stream().map(blog -> {
+        List<displayBlogVo> displayBlogVos = blogPage.getRecords().stream()
+              .map(blog -> {
             displayBlogVo blogVo = BeanUtil.copyProperties(blog, displayBlogVo.class);
             // 设置其他属性
-            blogVo.setTags(tagMapper.getBlogTagList(blog.getBlogId()).stream().map(Tag::getTagName).collect(Collectors.toList()));
+                  blogVo.setTimeStamp( blogVo.getCreateTime().toInstant(ZoneOffset.UTC).toEpochMilli());
+                  blogVo.setTags(tagMapper.getBlogTagList(blog.getBlogId()).stream().map(Tag::getTagName).collect(Collectors.toList()));
             Type type = typeMapper.selectById(blog.getTypeId());
             if (type != null) {
                 blogVo.setTypeName(type.getTypeName());
@@ -525,11 +526,75 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
         }).collect(Collectors.toList());
 
         // 创建一个新的 IPage，将 DisplayBlogVo 列表设置到其中
-        IPage<displayBlogVo> resultPage = new Page<>(blogPage.getCurrent(), blogPage.getSize(), blogPage.getTotal());
+        IPage<displayBlogVo> resultPage = new Page<>(blogPage.getCurrent(), blogPage.getSize(),blogPage.getTotal());
         resultPage.setRecords(displayBlogVos);
 
         return resultPage;
     }
+    public Page<FindPageVo> adminFindPage(QueryPageBean queryPageBean, String title, Integer typeId) {
+        currentPage = queryPageBean.getCurrentPage();
+        pageSize = queryPageBean.getPageSize();
+        start = (currentPage - 1) * pageSize;
 
+        //设置分页条件
+        Page<FindPageVo> page = new Page<>(queryPageBean.getCurrentPage(), queryPageBean.getPageSize());
+        QueryWrapper<Blog> wrapper = new QueryWrapper<>();
 
+        //执行全部查询
+        if (title ==null && typeId == null) {
+            List<FindPageVo> findPageVos = blogMapper.adminGetAllBlogs(start, pageSize);
+            findPageVos.forEach(findPageVo -> {
+                if(findPageVo.getUpdateTime()!=null){
+                findPageVo.setTimeStamp(findPageVo.getUpdateTime().toInstant(ZoneOffset.UTC).toEpochMilli());}});
+            page.setRecords(findPageVos);
+        } else {
+            if (title != null && typeId != null) {
+                List<FindPageVo> findPageVos = blogMapper.adminGetBlogByTitleAndType(start, pageSize, title, typeId);
+                findPageVos.forEach(findPageVo -> {
+                    if(findPageVo.getUpdateTime()!=null){
+                    findPageVo.setTimeStamp(findPageVo.getUpdateTime().toInstant(ZoneOffset.UTC).toEpochMilli());}});
+                page.setRecords(findPageVos);
+            } else if (title != null) {
+                List<FindPageVo> findPageVos = blogMapper.adminGetBlogByTitle(start, pageSize, title);
+                findPageVos.forEach(findPageVo -> {
+                    if(findPageVo.getUpdateTime()!=null){
+                    findPageVo.setTimeStamp(findPageVo.getUpdateTime().toInstant(ZoneOffset.UTC).toEpochMilli());}});
+                page.setRecords(findPageVos);
+            } else {
+                List<FindPageVo> findPageVos = blogMapper.adminGetBlogByType(start, pageSize, typeId);
+                findPageVos.forEach(findPageVo -> {
+                    if(findPageVo.getUpdateTime()!=null){
+                    findPageVo.setTimeStamp(findPageVo.getUpdateTime().toInstant(ZoneOffset.UTC).toEpochMilli());}});
+                page.setRecords(findPageVos);
+            }
+        }
+
+        //查询总记录数
+        page.setTotal(blogMapper.selectCount(wrapper));
+        return page;
+    }
+
+    @Override
+    public Page<examBlogVo> examBlogPage(QueryPageBean queryPageBean) {
+        currentPage = queryPageBean.getCurrentPage();
+        pageSize = queryPageBean.getPageSize();
+        start = (currentPage - 1) * pageSize;
+
+        //设置分页条件
+        Page<examBlogVo> page = new Page<examBlogVo>(queryPageBean.getCurrentPage(), queryPageBean.getPageSize());
+        LambdaQueryWrapper<Blog> wrapper = new LambdaQueryWrapper<Blog>().eq(Blog::getPublished, 0);
+        List<examBlogVo> examBlogVos = blogMapper.examBlogPages(start, pageSize);
+        examBlogVos.forEach(examBlogVo -> {examBlogVo.setTimeStamp(examBlogVo.getCreateTime().toInstant(ZoneOffset.UTC).toEpochMilli());});
+        page.setRecords(examBlogVos);
+        page.setTotal(blogMapper.selectCount(wrapper));
+        return page;
+    }
+
+    @Override
+    public Boolean examBlogs(Long bid,int operationId) {
+        LambdaUpdateWrapper<Blog> updateWrapper = Wrappers.lambdaUpdate();
+        LocalDateTime now = LocalDateTime.now();
+        boolean update = update(updateWrapper.eq(Blog::getBlogId, bid).set(Blog::getPublished, operationId).set(Blog::getUpdateTime,now));
+        return update;
+    }
 }

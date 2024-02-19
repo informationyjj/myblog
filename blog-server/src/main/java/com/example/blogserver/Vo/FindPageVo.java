@@ -13,7 +13,9 @@ public class FindPageVo {
     private Long blogId;
     private String typeName;
     private Boolean recommend;
-    private Boolean published;
+    private Integer published;
     private LocalDateTime updateTime;
     private String title;
+    private String preserve;
+    private Long TimeStamp;
 }

@@ -61,7 +61,7 @@ public class Blog implements Serializable {
     /**
      * 发布状态
      */
-    private Boolean published;
+    private Integer published;
 
     /**
      * 推荐状态
@@ -98,4 +98,5 @@ public class Blog implements Serializable {
      */
     private String copyright;
 
+    private  String preserve;
 }

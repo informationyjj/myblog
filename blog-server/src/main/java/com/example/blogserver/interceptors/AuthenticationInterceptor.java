@@ -9,9 +9,9 @@ import com.example.blogserver.Utils.JWTUtils;
 import com.example.blogserver.Utils.RedisUtil;
 import com.example.blogserver.annotation.IpRequired;
 import com.example.blogserver.annotation.LoginRequired;
+import com.example.blogserver.entity.User;
 import com.example.blogserver.exception.BizException;
 import com.example.blogserver.service.UserService;
-import com.zlc.blogcommon.po.User;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.web.method.HandlerMethod;
@@ -28,6 +28,7 @@ import java.lang.reflect.Method;
 import java.util.Objects;
 
 import static com.example.blogserver.Utils.JWTUtils.getTokenInfo;
+import static com.zlc.blogcommon.constant.RedisConst.CODE_EXPIRE_TIME;
 import static com.zlc.blogcommon.constant.RedisConst.TOKEN_ALLOW_LIST;
 import static com.zlc.blogcommon.enums.StatusCodeEnum.TOKEN_EXPIRED;
 
@@ -103,6 +104,10 @@ public class AuthenticationInterceptor implements HandlerInterceptor {
                 return    responsed("401", "token无效，请重新登录", response);
             }
             request.setAttribute("currentUser", user);
+                DecodedJWT verify = getTokenInfo(token);
+                String email1 = verify.getClaim("email").asString();
+                redisUtil.expire(TOKEN_ALLOW_LIST + email1,CODE_EXPIRE_TIME);
+
             return true;
         }
         return true;

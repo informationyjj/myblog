@@ -3,31 +3,25 @@ package com.example.blogserver.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
 import com.alibaba.fastjson.JSON;
-import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.example.blogserver.Utils.IpUtils;
 import com.example.blogserver.Utils.JWTUtils;
-import com.example.blogserver.Vo.HistoryVo;
+import com.example.blogserver.Utils.RedisUtil;
 import com.example.blogserver.Vo.RegistedVo;
 import com.example.blogserver.Vo.UserVo;
-import com.example.blogserver.entity.History;
 import com.example.blogserver.entity.QueryPageBean;
-import com.example.blogserver.entity.TbRole;
 import com.example.blogserver.entity.TbUserRole;
+import com.example.blogserver.entity.User;
 import com.example.blogserver.exception.BizException;
 import com.example.blogserver.mapper.UserMapper;
-import com.example.blogserver.service.ITbRoleService;
 import com.example.blogserver.service.ITbUserRoleService;
 import com.example.blogserver.service.UserService;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.zlc.blogcommon.Utill.HashUtil;
-import com.zlc.blogcommon.Utill.RSAUtil;
 import com.zlc.blogcommon.dto.EmailDTO;
-import com.zlc.blogcommon.po.User;
-import javafx.scene.control.Tab;
+
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.core.MessageProperties;
@@ -37,12 +31,13 @@ import org.springframework.stereotype.Service;
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.HashMap;
 import java.util.List;
 
 import static com.example.blogserver.Utils.CommonUtils.checkEmail;
 import static com.example.blogserver.Utils.CommonUtils.getRandomCode;
-import static com.example.blogserver.interceptors.AuthenticationInterceptor.redisUtil;
+
 import static com.zlc.blogcommon.constant.RabbitMQConst.EMAIL_EXCHANGE;
 import static com.zlc.blogcommon.constant.RedisConst.*;
 
@@ -56,13 +51,15 @@ import static com.zlc.blogcommon.constant.RedisConst.*;
  */
 @Slf4j
 @Service
-public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements UserService {
+public class UserServiceImpl extends ServiceImpl<UserMapper, com.example.blogserver.entity.User> implements UserService {
     @Resource
     private RabbitTemplate rabbitTemplate;
     @Resource
     private ITbUserRoleService roleService;
     @Resource
     private  UserMapper userMapper;
+    @Resource
+    private RedisUtil redisUtil;
 
     /**
      * @param register
@@ -103,6 +100,34 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
       return  true;
     }
 
+    @Override
+    public Boolean adminRegisted(RegistedVo register, HttpServletRequest request) {
+        User user = BeanUtil.toBean(register, User.class);
+        RegistedVo registed=new RegistedVo();
+        LambdaQueryWrapper<User> wrapper = Wrappers.lambdaQuery();
+        wrapper.eq(User::getEmail,register.getEmail());
+        if( getOne(wrapper)!=null){
+            throw new BizException("该账号已经注册过了");
+        }
+        else{
+            user.setPassword( HashUtil.hashPassword(register.getPassword()));
+            user.setLastIp(request.getAttribute("host").toString());
+
+            if(save(user)){
+                User one = getOne(new LambdaQueryWrapper<User>().eq(User::getEmail, register.getEmail()));
+                Long uid = one.getUid();
+                new TbUserRole().setUid(uid).setRid(2);
+                roleService.save( new TbUserRole().setUid(uid).setRid(2) );
+                log.info(user.getEmail()+":注册成功！");
+
+                registed.setEmail(register.getEmail());
+            }
+            else{
+                log.info(user.getEmail()+":注册失败！");
+            }
+        }
+        return  true;
+    }
     @Override
     public String logined(RegistedVo register, HttpServletRequest request) {
         User userDB = getOne(new LambdaQueryWrapper<User>()
@@ -177,11 +202,12 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
      */
     @Override
     public void resetPassword(RegistedVo resetPassword) {
-        User userDB = getOne(new LambdaQueryWrapper<User>()
-                .eq(User::getUsername, resetPassword.getUsername())
-                .eq(User::getEmail, resetPassword.getEmail()));
+        String email = resetPassword.getEmail();
+
+        com.example.blogserver.entity.User userDB = userMapper.getUser(email);
+        System.out.println(userDB);
         if(userDB==null){
-            throw new BizException("该用户不存在，请重新确认");
+            throw   new BizException("该用户不存在，请重新确认");
         }
 
 
@@ -222,14 +248,44 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         List<UserVo> records=null;
         if(queryPageBean.getQueryString()!=null){
            records = userMapper.RecordsBynickname(offset, pageSize,queryPageBean.getQueryString());
+            records.forEach(findPageVo -> {
+                if(findPageVo.getLastLoginTime()!=null){
+                findPageVo.setTimeStamp(findPageVo.getLastLoginTime().toInstant(ZoneOffset.UTC).toEpochMilli());}});
         }
         else{
          records = userMapper.Records(offset, pageSize);
+
+            records.forEach(findPageVo -> {
+                        if(findPageVo.getLastLoginTime()!=null){
+                findPageVo.setTimeStamp(findPageVo.getLastLoginTime().toInstant(ZoneOffset.UTC).toEpochMilli());}});
         }
         Page<UserVo> page = new Page<>(queryPageBean.getCurrentPage(), queryPageBean.getPageSize());
         page.setRecords(records);
         page.setTotal(count());
 
         return page;
+    }
+    @Override
+    public User selectByUsername(String username) {
+        QueryWrapper<User> wrapper = new QueryWrapper<>();
+        wrapper.eq("nickname", username)
+                .select( "nickname", "avatar", "uid");
+        return userMapper.selectOne(wrapper);
+    }
+
+
+    public List<User> selectAllNicknames() {
+        QueryWrapper<User> wrapper = new QueryWrapper<>();
+        wrapper.select( "nickname", "avatar", "uid");
+        List<User> users = userMapper.selectList(wrapper);
+        return users;
+    }
+
+    @Override
+    public User selectByUid(Long uid) {
+        QueryWrapper<User> wrapper = new QueryWrapper<>();
+        wrapper.eq("uid", uid)
+                .select( "nickname", "avatar", "username");
+        return userMapper.selectOne(wrapper);
     }
 }
