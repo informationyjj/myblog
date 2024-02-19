@@ -8,6 +8,7 @@
       <module fileurl="file://$PROJECT_DIR$/blog-extension/blog-extension.iml" filepath="$PROJECT_DIR$/blog-extension/blog-extension.iml" />
       <module fileurl="file://$PROJECT_DIR$/blog-nacos/blog-nacos.iml" filepath="$PROJECT_DIR$/blog-nacos/blog-nacos.iml" />
       <module fileurl="file://$PROJECT_DIR$/blog-server/blog-server.iml" filepath="$PROJECT_DIR$/blog-server/blog-server.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../../reviseDemo2/reviseDemo2.iml" filepath="$PROJECT_DIR$/../../reviseDemo2/reviseDemo2.iml" />
     </modules>
   </component>
 </project>
