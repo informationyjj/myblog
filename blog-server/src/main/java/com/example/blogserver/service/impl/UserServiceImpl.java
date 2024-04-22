@@ -87,7 +87,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, com.example.blogser
           if(save(user)){
               User one = getOne(new LambdaQueryWrapper<User>().eq(User::getEmail, register.getEmail()));
               Long uid = one.getUid();
-              new TbUserRole().setUid(uid).setRid(2);
+              new TbUserRole().setUid(uid).setRid(2);//用户权限
               roleService.save( new TbUserRole().setUid(uid).setRid(2) );
               log.info(user.getEmail()+":注册成功！");
 
@@ -139,7 +139,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, com.example.blogser
         if(!HashUtil.verifyPassword(register.getPassword(),userDB.getPassword())){
             throw new BizException("输入密码错误！");
         }
-        userDB.setLastIp(request.getRemoteHost());
+        userDB.setLastIp(request.getRemoteHost());//获取发送HTTP请求的客户端的主机名
         userDB.setLastLoginTime(LocalDateTime.now());
         updateById(userDB);
         return  getToken(userDB);

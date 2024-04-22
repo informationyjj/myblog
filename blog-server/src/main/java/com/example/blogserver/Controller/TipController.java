@@ -1,4 +1,4 @@
-package com.example.blogserver.controller;
+package com.example.blogserver.Controller;
 
 
 import com.example.blogserver.Utils.JWTUtils;
